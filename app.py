@@ -36,7 +36,7 @@ from database import (
     upsert_subject,
     upsert_topic,
 )
-from models import DIFFICULTIES
+from models import DIFFICULTIES, CLASS_LEVELS, STREAMS, CLASSES_BY_LEVEL, STREAMS_BY_LEVEL
 from quiz import get_quiz_questions, grade_quiz
 from recommendations import generate_recommendation
 from seed_data import seed_database
@@ -626,16 +626,48 @@ def take_quiz_page(student_id):
 
     st.title("📝 Take Quiz")
 
+    # Get student's class level and stream
+    student = get_student(student_id)
+    student_level = student.get("class_level", "Secondary (9-10)") if student else "Secondary (9-10)"
+    student_stream = student.get("stream", "General") if student else "General"
+    student_class = student.get("class_name", "") if student else ""
+
+    # Show which level they belong to
+    st.caption(f"🎓 Your Level: **{student_level}** | Stream: **{student_stream}** | {student_class}")
+
     tab1, tab2 = st.tabs(["📚 Select Topic Quiz", "🎯 Smart Weak Topic Practice"])
 
     with tab1:
-        subjects = list_subjects()
-        if not subjects:
+        all_subjects = list_subjects()
+        if not all_subjects:
             st.warning("No subjects found. Seed sample data from the Management page.")
             return
 
+        # Filter subjects by student's level and stream
+        # Subject format example: "Primary (1-5) / General / English"
+        expected_prefix = f"{student_level} / {student_stream}"
+        filtered_subjects = [
+            s for s in all_subjects
+            if s.startswith(expected_prefix)
+        ]
+        
+        # If no match, try by level only
+        if not filtered_subjects:
+            filtered_subjects = [
+                s for s in all_subjects
+                if student_level in s
+            ]
+
+        # Final fallback: show all
+        if not filtered_subjects:
+            filtered_subjects = all_subjects
+
+        if not filtered_subjects:
+            st.warning(f"No subjects available for {student_level} — {student_stream}. Try the Management page.")
+            return
+
         col1, col2, col3 = st.columns(3)
-        subject = col1.selectbox("Subject", subjects)
+        subject = col1.selectbox("Subject", filtered_subjects)
         topics = [t["name"] for t in list_topics(subject)]
         if not topics:
             st.warning("No topics found for this subject.")
@@ -643,7 +675,13 @@ def take_quiz_page(student_id):
         topic = col2.selectbox("Topic", topics)
         available_count = len(list_questions(subject, topic))
         max_questions = max(1, available_count)
-        num_questions = col3.number_input("Number of questions", min_value=1, max_value=max_questions, value=min(5, max_questions), key="num_q_standard")
+        num_questions = col3.number_input(
+            "Number of questions",
+            min_value=1,
+            max_value=max_questions,
+            value=min(5, max_questions),
+            key="num_q_standard"
+        )
 
         if available_count == 0:
             st.warning("This topic has no questions yet. Add questions in Management.")
@@ -680,8 +718,12 @@ def take_quiz_page(student_id):
     questions = st.session_state.get("quiz_questions", [])
     if questions:
         st.divider()
-        render_quiz_interface(student_id, questions, st.session_state.get("quiz_subject"), st.session_state.get("quiz_topic"))
-
+        render_quiz_interface(
+            student_id,
+            questions,
+            st.session_state.get("quiz_subject"),
+            st.session_state.get("quiz_topic")
+        )
 
 # ============================================================
 # WEAK TOPICS

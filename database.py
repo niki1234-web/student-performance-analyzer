@@ -91,25 +91,27 @@ def _hash_password(password: str) -> str:
 
 # --- AUTHENTICATION & STUDENT MANAGEMENT ---
 
-def register_student(username: str, password: str, name: str) -> Optional[str]:
-    """Naya student register karta hai."""
+def register_student(username: str, password: str, name: str, class_level: str = "General", stream: str = "General", class_name: str = "General") -> Optional[str]:
+    """Naya student register karta hai — class level aur stream ke saath."""
     db = get_db()
     if db is None or not username.strip() or not password.strip() or not name.strip():
         return None
     
     clean_username = username.strip().lower()
     if db.students.find_one({"username": clean_username}):
-        return None  # Username pehle se exist karta hai
+        return None
 
     doc = {
         "username": clean_username,
         "password": _hash_password(password.strip()),
         "name": name.strip(),
+        "class_level": class_level,
+        "stream": stream,
+        "class_name": class_name,
         "created_at": datetime.now(timezone.utc)
     }
     result = db.students.insert_one(doc)
     return str(result.inserted_id)
-
 
 def authenticate_student(username: str, password: str) -> Optional[Dict[str, Any]]:
     """Username aur password verify karke student document return karta hai."""
